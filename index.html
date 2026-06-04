@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Touch Error Experiment</title>
 
+    <!-- 최신 RealEye SDK 연동 코드 -->
     <script type="module">
         import EmbeddedPageSdk from "https://app.realeye.io/sdk/js/testRunnerEmbeddableSdk-latest.js";
         window.addEventListener("DOMContentLoaded", () => {
@@ -13,18 +14,10 @@
     </script>
 
     <style>
-        body { font-family: sans-serif; margin: 0; padding: 0; background-color: #f0f0f0; touch-action: none; /* 기본 터치 동작 방지 */ }
+        body { font-family: sans-serif; margin: 0; padding: 0; background-color: #000; touch-action: none; }
         
-        /* 설정 패널 */
-        #setup-panel { padding: 20px; background: white; height: 100vh; box-sizing: border-box; }
-        .setting-group { margin-bottom: 15px; }
-        .setting-group label { display: block; margin-bottom: 5px; font-weight: bold; }
-        .setting-group input { width: 100%; padding: 10px; font-size: 16px; box-sizing: border-box; }
-        button { width: 100%; padding: 15px; font-size: 18px; background-color: #007bff; color: white; border: none; border-radius: 8px; margin-top: 10px; cursor: pointer;}
-        button.export-btn { background-color: #28a745; }
-
-        /* 실험 화면 (스마트폰 형태 래퍼) */
-        #experiment-screen { display: none; width: 100vw; height: 100vh; background-color: #000; position: relative; }
+        /* 실험 화면이 처음부터 무조건 보이게 설정 */
+        #experiment-screen { display: block; width: 100vw; height: 100vh; position: relative; }
         
         /* 5 x 6 그리드 컨테이너 */
         #grid-container {
@@ -34,74 +27,56 @@
             gap: 10px;
             padding: 20px;
             width: 100%;
-            height: 80%; /* 하단 여백 확보 */
+            height: 80%;
             box-sizing: border-box;
             position: absolute;
             top: 50%;
             transform: translateY(-50%);
         }
 
-        /* 아이콘 기본 스타일 */
-        .icon {
-            background-color: #555;
-            border-radius: 20%; /* 앱 아이콘 형태(Squircle) */
-            margin: auto;
-            transition: background-color 0.1s;
-        }
-
-        /* 타겟 아이콘 스타일 */
+        .icon { background-color: #555; border-radius: 20%; margin: auto; transition: background-color 0.1s; }
         .target { background-color: #ff4757; box-shadow: 0 0 15px #ff4757; }
         
-        /* 십자선 (터치 피드백용) */
         #touch-feedback { position: absolute; width: 20px; height: 20px; background: rgba(255, 255, 255, 0.7); border-radius: 50%; display: none; pointer-events: none; transform: translate(-50%, -50%); z-index: 100; }
+
+        /* 결과 화면 (처음엔 숨김) */
+        #results-screen { display: none; padding: 20px; background: white; height: 100vh; box-sizing: border-box; color: black; }
+        button { width: 100%; padding: 15px; font-size: 18px; color: white; border: none; border-radius: 8px; margin-top: 10px; cursor: pointer;}
+        button.export-btn { background-color: #28a745; }
     </style>
 </head>
 <body>
-
-    <div id="setup-panel">
-        <h2>실험 설정</h2>
-        <div class="setting-group">
-            <label>아이콘 크기 (px)</label>
-            <input type="number" id="icon-size" value="50">
-        </div>
-        <div class="setting-group">
-            <label>실험 반복 횟수 (Trial)</label>
-            <input type="number" id="trial-count" value="10">
-        </div>
-        <button onclick="startExperiment()">실험 시작 (모바일에서 탭)</button>
-        
-        <div id="results-section" style="display: none; margin-top: 30px;">
-            <h2>실험 결과</h2>
-            <p id="result-summary"></p>
-            <button class="export-btn" onclick="exportToCSV()">결과 CSV 다운로드</button>
-            <button onclick="location.reload()" style="background-color: #6c757d;">초기화</button>
-        </div>
-    </div>
-
+    
+    <!-- 접속하자마자 보이는 실험 화면 -->
     <div id="experiment-screen">
         <div id="grid-container"></div>
         <div id="touch-feedback"></div>
     </div>
 
+    <!-- 실험이 다 끝나면 나타날 결과 화면 -->
+    <div id="results-screen">
+        <h2>실험 종료</h2>
+        <p id="result-summary"></p>
+        <button class="export-btn" onclick="exportToCSV()">결과 CSV 다운로드</button>
+    </div>
+
     <script>
-        let trialsTotal = 0;
+        // 고정 설정값 (수동 입력 화면 제거)
+        const iconSize = 50;
+        const trialsTotal = 5; // 20초 제한을 피하기 위해 5회로 고정
+        
         let currentTrial = 0;
-        let iconSize = 50;
         let targetIndex = -1;
         let startTime = 0;
-        let experimentData = []; // 결과를 저장할 배열
+        let experimentData = [];
 
-        const setupPanel = document.getElementById('setup-panel');
         const expScreen = document.getElementById('experiment-screen');
         const gridContainer = document.getElementById('grid-container');
         const feedback = document.getElementById('touch-feedback');
+        const resultsScreen = document.getElementById('results-screen');
 
-        function startExperiment() {
-            iconSize = parseInt(document.getElementById('icon-size').value);
-            trialsTotal = parseInt(document.getElementById('trial-count').value);
-            currentTrial = 0;
-            experimentData = [];
-
+        // 사이트 접속 시 셋업 없이 바로 시작
+        window.onload = () => {
             // 그리드 생성 (5x6 = 30개)
             gridContainer.innerHTML = '';
             for (let i = 0; i < 30; i++) {
@@ -112,15 +87,13 @@
                 div.dataset.index = i;
                 gridContainer.appendChild(div);
             }
-
-            setupPanel.style.display = 'none';
-            expScreen.style.display = 'block';
-
-            // 전체 화면에 터치 이벤트 리스너 등록
+            
+            // 터치 이벤트 등록
             expScreen.addEventListener('touchstart', handleTouch, {passive: false});
             
-            setTimeout(nextTrial, 1000); // 1초 후 첫 타겟 생성
-        }
+            // 1.5초 대기 후 첫 번째 빨간색 타겟 등장!
+            setTimeout(nextTrial, 1500); 
+        };
 
         function nextTrial() {
             if (currentTrial >= trialsTotal) {
@@ -128,52 +101,42 @@
                 return;
             }
 
-            // 이전 타겟 초기화
             if (targetIndex !== -1) {
                 gridContainer.children[targetIndex].classList.remove('target');
             }
 
-            // 새로운 랜덤 타겟 지정 (0~29)
             targetIndex = Math.floor(Math.random() * 30);
             gridContainer.children[targetIndex].classList.add('target');
 
             currentTrial++;
-            startTime = performance.now(); // 밀리초 단위 정밀 타이머 시작
+            startTime = performance.now();
         }
 
         function handleTouch(e) {
-            e.preventDefault(); // 화면 스크롤 방지
-            
-            if (targetIndex === -1) return; // 대기 상태일 때 터치 무시
+            e.preventDefault(); 
+            if (targetIndex === -1) return; 
 
             let touchTime = performance.now();
             let reactionTime = touchTime - startTime;
-
             let touch = e.touches[0];
             let tx = touch.clientX;
             let ty = touch.clientY;
 
-            // 터치 피드백 애니메이션
             feedback.style.left = tx + 'px';
             feedback.style.top = ty + 'px';
             feedback.style.display = 'block';
             setTimeout(() => feedback.style.display = 'none', 100);
 
-            // 타겟 중심 및 반지름 계산
             let targetEl = gridContainer.children[targetIndex];
             let rect = targetEl.getBoundingClientRect();
             let cx = rect.left + (rect.width / 2);
             let cy = rect.top + (rect.height / 2);
-            let radius = rect.width / 2; // 정사각형이므로 width/2
-
-            // 중심으로부터의 거리 계산 (유클리디안 거리)
-            let distanceToCenter = Math.sqrt(Math.pow(tx - cx, 2) + Math.pow(ty - cy, 2));
+            let radius = rect.width / 2; 
             
-            // 가장자리 기준 오차 계산
+            let distanceToCenter = Math.sqrt(Math.pow(tx - cx, 2) + Math.pow(ty - cy, 2));
             let errorDistance = Math.max(0, distanceToCenter - radius);
             let isHit = errorDistance === 0;
 
-            // 데이터 기록
             experimentData.push({
                 trial: currentTrial,
                 iconSize: iconSize,
@@ -182,10 +145,9 @@
                 isHit: isHit
             });
 
-            targetIndex = -1; // 중복 터치 방지
+            targetIndex = -1; 
             targetEl.classList.remove('target');
 
-            // 다음 트라이얼 (0.5초 ~ 1.5초 랜덤 대기 후 생성)
             let randomDelay = Math.random() * 1000 + 500;
             setTimeout(nextTrial, randomDelay);
         }
@@ -193,8 +155,8 @@
         function endExperiment() {
             expScreen.removeEventListener('touchstart', handleTouch);
             expScreen.style.display = 'none';
-            setupPanel.style.display = 'block';
-            document.getElementById('results-section').style.display = 'block';
+            document.body.style.backgroundColor = 'white'; // 배경 다시 하얗게
+            resultsScreen.style.display = 'block';
             
             let totalHit = experimentData.filter(d => d.isHit).length;
             let avgTime = experimentData.reduce((sum, d) => sum + d.reactionTime_ms, 0) / trialsTotal;
