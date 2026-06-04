@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Touch Error Experiment</title>
 
-    <!-- 최신 RealEye SDK 연동 코드 -->
     <script type="module">
         import EmbeddedPageSdk from "https://app.realeye.io/sdk/js/testRunnerEmbeddableSdk-latest.js";
         window.addEventListener("DOMContentLoaded", () => {
@@ -16,10 +15,8 @@
     <style>
         body { font-family: sans-serif; margin: 0; padding: 0; background-color: #000; touch-action: none; }
         
-        /* 실험 화면이 처음부터 무조건 보이게 설정 */
         #experiment-screen { display: block; width: 100vw; height: 100vh; position: relative; }
         
-        /* 5 x 6 그리드 컨테이너 */
         #grid-container {
             display: grid;
             grid-template-columns: repeat(5, 1fr);
@@ -39,7 +36,6 @@
         
         #touch-feedback { position: absolute; width: 20px; height: 20px; background: rgba(255, 255, 255, 0.7); border-radius: 50%; display: none; pointer-events: none; transform: translate(-50%, -50%); z-index: 100; }
 
-        /* 결과 화면 (처음엔 숨김) */
         #results-screen { display: none; padding: 20px; background: white; height: 100vh; box-sizing: border-box; color: black; }
         button { width: 100%; padding: 15px; font-size: 18px; color: white; border: none; border-radius: 8px; margin-top: 10px; cursor: pointer;}
         button.export-btn { background-color: #28a745; }
@@ -47,13 +43,11 @@
 </head>
 <body>
     
-    <!-- 접속하자마자 보이는 실험 화면 -->
     <div id="experiment-screen">
         <div id="grid-container"></div>
         <div id="touch-feedback"></div>
     </div>
 
-    <!-- 실험이 다 끝나면 나타날 결과 화면 -->
     <div id="results-screen">
         <h2>실험 종료</h2>
         <p id="result-summary"></p>
@@ -61,9 +55,13 @@
     </div>
 
     <script>
-        // 고정 설정값 (수동 입력 화면 제거)
-        const iconSize = 50;
-        const trialsTotal = 5; // 20초 제한을 피하기 위해 5회로 고정
+        // 💡 핵심 추가 기능: 인터넷 주소창에서 '?size=숫자'를 읽어옵니다.
+        const urlParams = new URLSearchParams(window.location.search);
+        const sizeParam = urlParams.get('size');
+        // 주소에 size 값이 있으면 그 숫자를 쓰고, 없으면 기본값 50을 씁니다.
+        const iconSize = sizeParam ? parseInt(sizeParam) : 50; 
+        
+        const trialsTotal = 5; 
         
         let currentTrial = 0;
         let targetIndex = -1;
@@ -75,9 +73,7 @@
         const feedback = document.getElementById('touch-feedback');
         const resultsScreen = document.getElementById('results-screen');
 
-        // 사이트 접속 시 셋업 없이 바로 시작
         window.onload = () => {
-            // 그리드 생성 (5x6 = 30개)
             gridContainer.innerHTML = '';
             for (let i = 0; i < 30; i++) {
                 let div = document.createElement('div');
@@ -88,10 +84,7 @@
                 gridContainer.appendChild(div);
             }
             
-            // 터치 이벤트 등록
             expScreen.addEventListener('touchstart', handleTouch, {passive: false});
-            
-            // 1.5초 대기 후 첫 번째 빨간색 타겟 등장!
             setTimeout(nextTrial, 1500); 
         };
 
@@ -155,14 +148,14 @@
         function endExperiment() {
             expScreen.removeEventListener('touchstart', handleTouch);
             expScreen.style.display = 'none';
-            document.body.style.backgroundColor = 'white'; // 배경 다시 하얗게
+            document.body.style.backgroundColor = 'white'; 
             resultsScreen.style.display = 'block';
             
             let totalHit = experimentData.filter(d => d.isHit).length;
             let avgTime = experimentData.reduce((sum, d) => sum + d.reactionTime_ms, 0) / trialsTotal;
             
             document.getElementById('result-summary').innerHTML = 
-                `총 시도: ${trialsTotal}회 <br> 명중률: ${Math.round((totalHit/trialsTotal)*100)}% <br> 평균 반응속도: ${Math.round(avgTime)}ms`;
+                `아이콘 크기: ${iconSize}px <br> 총 시도: ${trialsTotal}회 <br> 명중률: ${Math.round((totalHit/trialsTotal)*100)}% <br> 평균 반응속도: ${Math.round(avgTime)}ms`;
         }
 
         function exportToCSV() {
