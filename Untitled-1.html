@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Touch Error Experiment</title>
+
+    <script src="https://test.realeye.io/sdk/js/v1/realeye.js"></script>
+
+    <style>
+        body { font-family: sans-serif; margin: 0; padding: 0; background-color: #f0f0f0; touch-action: none; /* 기본 터치 동작 방지 */ }
+        
+        /* 설정 패널 */
+        #setup-panel { padding: 20px; background: white; height: 100vh; box-sizing: border-box; }
+        .setting-group { margin-bottom: 15px; }
+        .setting-group label { display: block; margin-bottom: 5px; font-weight: bold; }
+        .setting-group input { width: 100%; padding: 10px; font-size: 16px; box-sizing: border-box; }
+        button { width: 100%; padding: 15px; font-size: 18px; background-color: #007bff; color: white; border: none; border-radius: 8px; margin-top: 10px; cursor: pointer;}
+        button.export-btn { background-color: #28a745; }
+
+        /* 실험 화면 (스마트폰 형태 래퍼) */
+        #experiment-screen { display: none; width: 100vw; height: 100vh; background-color: #000; position: relative; }
+        
+        /* 5 x 6 그리드 컨테이너 */
+        #grid-container {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            grid-template-rows: repeat(6, 1fr);
+            gap: 10px;
+            padding: 20px;
+            width: 100%;
+            height: 80%; /* 하단 여백 확보 */
+            box-sizing: border-box;
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        /* 아이콘 기본 스타일 */
+        .icon {
+            background-color: #555;
+            border-radius: 20%; /* 앱 아이콘 형태(Squircle) */
+            margin: auto;
+            transition: background-color 0.1s;
+        }
+
+        /* 타겟 아이콘 스타일 */
+        .target { background-color: #ff4757; box-shadow: 0 0 15px #ff4757; }
+        
+        /* 십자선 (터치 피드백용) */
+        #touch-feedback { position: absolute; width: 20px; height: 20px; background: rgba(255, 255, 255, 0.7); border-radius: 50%; display: none; pointer-events: none; transform: translate(-50%, -50%); z-index: 100; }
+    </style>
+</head>
+<body>
+
+    <div id="setup-panel">
+        <h2>실험 설정</h2>
+        <div class="setting-group">
+            <label>아이콘 크기 (px)</label>
+            <input type="number" id="icon-size" value="50">
+        </div>
+        <div class="setting-group">
+            <label>실험 반복 횟수 (Trial)</label>
+            <input type="number" id="trial-count" value="10">
+        </div>
+        <button onclick="startExperiment()">실험 시작 (모바일에서 탭)</button>
+        
+        <div id="results-section" style="display: none; margin-top: 30px;">
+            <h2>실험 결과</h2>
+            <p id="result-summary"></p>
+            <button class="export-btn" onclick="exportToCSV()">결과 CSV 다운로드</button>
+            <button onclick="location.reload()" style="background-color: #6c757d;">초기화</button>
+        </div>
+    </div>
+
+    <div id="experiment-screen">
+        <div id="grid-container"></div>
+        <div id="touch-feedback"></div>
+    </div>
+
+    <script>
+        let trialsTotal = 0;
+        let currentTrial = 0;
+        let iconSize = 50;
+        let targetIndex = -1;
+        let startTime = 0;
+        let experimentData = []; // 결과를 저장할 배열
+
+        const setupPanel = document.getElementById('setup-panel');
+        const expScreen = document.getElementById('experiment-screen');
+        const gridContainer = document.getElementById('grid-container');
+        const feedback = document.getElementById('touch-feedback');
+
+        function startExperiment() {
+            iconSize = parseInt(document.getElementById('icon-size').value);
+            trialsTotal = parseInt(document.getElementById('trial-count').value);
+            currentTrial = 0;
+            experimentData = [];
+
+            // 그리드 생성 (5x6 = 30개)
+            gridContainer.innerHTML = '';
+            for (let i = 0; i < 30; i++) {
+                let div = document.createElement('div');
+                div.className = 'icon';
+                div.style.width = iconSize + 'px';
+                div.style.height = iconSize + 'px';
+                div.dataset.index = i;
+                gridContainer.appendChild(div);
+            }
+
+            setupPanel.style.display = 'none';
+            expScreen.style.display = 'block';
+
+            // 전체 화면에 터치 이벤트 리스너 등록
+            expScreen.addEventListener('touchstart', handleTouch, {passive: false});
+            
+            setTimeout(nextTrial, 1000); // 1초 후 첫 타겟 생성
+        }
+
+        function nextTrial() {
+            if (currentTrial >= trialsTotal) {
+                endExperiment();
+                return;
+            }
+
+            // 이전 타겟 초기화
+            if (targetIndex !== -1) {
+                gridContainer.children[targetIndex].classList.remove('target');
+            }
+
+            // 새로운 랜덤 타겟 지정 (0~29)
+            targetIndex = Math.floor(Math.random() * 30);
+            gridContainer.children[targetIndex].classList.add('target');
+
+            currentTrial++;
+            startTime = performance.now(); // 밀리초 단위 정밀 타이머 시작
+        }
+
+        function handleTouch(e) {
+            e.preventDefault(); // 화면 스크롤 방지
+            
+            if (targetIndex === -1) return; // 대기 상태일 때 터치 무시
+
+            let touchTime = performance.now();
+            let reactionTime = touchTime - startTime;
+
+            let touch = e.touches[0];
+            let tx = touch.clientX;
+            let ty = touch.clientY;
+
+            // 터치 피드백 애니메이션
+            feedback.style.left = tx + 'px';
+            feedback.style.top = ty + 'px';
+            feedback.style.display = 'block';
+            setTimeout(() => feedback.style.display = 'none', 100);
+
+            // 타겟 중심 및 반지름 계산
+            let targetEl = gridContainer.children[targetIndex];
+            let rect = targetEl.getBoundingClientRect();
+            let cx = rect.left + (rect.width / 2);
+            let cy = rect.top + (rect.height / 2);
+            let radius = rect.width / 2; // 정사각형이므로 width/2
+
+            // 중심으로부터의 거리 계산 (유클리디안 거리)
+            let distanceToCenter = Math.sqrt(Math.pow(tx - cx, 2) + Math.pow(ty - cy, 2));
+            
+            // 가장자리 기준 오차 계산
+            let errorDistance = Math.max(0, distanceToCenter - radius);
+            let isHit = errorDistance === 0;
+
+            // 데이터 기록
+            experimentData.push({
+                trial: currentTrial,
+                iconSize: iconSize,
+                reactionTime_ms: Math.round(reactionTime),
+                errorDistance_px: errorDistance.toFixed(2),
+                isHit: isHit
+            });
+
+            targetIndex = -1; // 중복 터치 방지
+            targetEl.classList.remove('target');
+
+            // 다음 트라이얼 (0.5초 ~ 1.5초 랜덤 대기 후 생성)
+            let randomDelay = Math.random() * 1000 + 500;
+            setTimeout(nextTrial, randomDelay);
+        }
+
+        function endExperiment() {
+            expScreen.removeEventListener('touchstart', handleTouch);
+            expScreen.style.display = 'none';
+            setupPanel.style.display = 'block';
+            document.getElementById('results-section').style.display = 'block';
+            
+            let totalHit = experimentData.filter(d => d.isHit).length;
+            let avgTime = experimentData.reduce((sum, d) => sum + d.reactionTime_ms, 0) / trialsTotal;
+            
+            document.getElementById('result-summary').innerHTML = 
+                `총 시도: ${trialsTotal}회 <br> 명중률: ${Math.round((totalHit/trialsTotal)*100)}% <br> 평균 반응속도: ${Math.round(avgTime)}ms`;
+        }
+
+        function exportToCSV() {
+            let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; 
+            csvContent += "Trial,Icon Size(px),Reaction Time(ms),Error Distance(px),Hit/Miss\n";
+            
+            experimentData.forEach(function(rowArray) {
+                let row = `${rowArray.trial},${rowArray.iconSize},${rowArray.reactionTime_ms},${rowArray.errorDistance_px},${rowArray.isHit ? 'Hit' : 'Miss'}`;
+                csvContent += row + "\n";
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `touch_experiment_size_${iconSize}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>
